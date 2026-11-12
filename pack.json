@@ -76,6 +76,8 @@
     "mouse-tweaks",
     "zoomify",
     "dynamic-fps",
-    "immediatelyfast"
+    "immediatelyfast",
+    "fzzy-config",
+    "patchouli"
   ]
 }
