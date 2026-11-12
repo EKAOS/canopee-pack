@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:">
+<title>Canopée Launcher</title>
+<style>
+  :root {
+    --bg: #0f1016;
+    --rail: #14151c;
+    --pill: rgba(22, 23, 31, .82);
+    --pill-hi: rgba(40, 42, 54, .9);
+    --line: rgba(255, 255, 255, .06);
+    --text: #f4f4f8;
+    --dim: #8d8fa3;
+    --accent: #8468f5;
+    --body: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --display: "Segoe UI Black", "Arial Black", "Segoe UI", system-ui, sans-serif;
+    --mono: Consolas, "Lucida Console", monospace;
+    --rail-w: 84px;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { font-family: var(--body); color: var(--text); background: var(--bg); overflow: hidden;
+    user-select: none; -webkit-font-smoothing: antialiased; }
+  button, select { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  svg.i { width: 18px; height: 18px; fill: currentColor; flex: none; }
+  [hidden] { display: none !important; }
+
+  /* ----- Fond ----- */
+  .back { position: fixed; inset: 0; }
+  .back canvas { position: absolute; inset: 0; width: 100%; height: 100%; filter: blur(3px); opacity: .85; }
+  /* Ta propre capture d'écran : dépose-la dans ui/ sous le nom fond.jpg */
+  .photo { position: absolute; inset: -40px; background: url("fond.jpg") center / cover no-repeat; filter: blur(14px);
+    animation: breathe 40s ease-in-out infinite alternate; }
+  @keyframes breathe { from { transform: scale(1); } to { transform: scale(1.08) translateX(-1.5%); } }
+  @media (prefers-reduced-motion: reduce) { .photo { animation: none; } }
+  .veil { position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(15, 16, 22, .96) 0%, rgba(15, 16, 22, .78) 45%, rgba(15, 16, 22, .5) 100%),
+                linear-gradient(0deg, rgba(15, 16, 22, .9) 0%, rgba(15, 16, 22, 0) 40%); }
+  .drag { position: fixed; z-index: 1; inset: 0 0 auto 0; height: 34px; -webkit-app-region: drag; }
+  .winbtns { position: fixed; z-index: 6; top: 10px; right: 14px; display: flex; gap: 2px; }
+  .winbtns button { width: 34px; height: 26px; border-radius: 8px; color: var(--text); font-size: 14px; background: rgba(15, 16, 22, .45); }
+  .winbtns button:hover { background: var(--pill-hi); color: var(--text); }
+  .winbtns .x:hover { background: #d0483c; color: #fff; }
+
+  /* ----- Écran de connexion ----- */
+  .login { position: fixed; z-index: 4; inset: 0 auto 0 0; width: 40%; min-width: 340px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; padding: 40px; background: var(--rail); text-align: center; }
+  .wordmark { font-family: var(--display); font-weight: 900; font-size: 34px; letter-spacing: .34em; text-indent: .34em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+  .login p { font-size: 14px; line-height: 1.5; color: var(--dim); max-width: 280px; }
+  .wide { width: 100%; max-width: 300px; height: 52px; margin-top: 12px; border-radius: 8px; font-weight: 700; font-size: 15px;
+    background: var(--accent); transition: filter .15s ease; }
+  .wide:hover:not(:disabled) { filter: brightness(1.12); }
+  .wide:disabled { opacity: .55; cursor: default; }
+  .login .err { color: #ff9d90; min-height: 20px; }
+
+  /* ----- Barre latérale ----- */
+  .rail { position: fixed; z-index: 3; inset: 0 auto 0 0; width: var(--rail-w); display: flex; flex-direction: column;
+    align-items: center; padding: 34px 0 30px; background: var(--rail); }
+  .mark { font-family: var(--display); font-weight: 900; font-size: 30px; line-height: 1; color: var(--accent); }
+  .nav { margin: auto 0; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 26px; background: rgba(255, 255, 255, .03); }
+  .ico { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; color: var(--dim);
+    transition: color .15s ease, background .15s ease; }
+  .ico:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
+  .ico[aria-current="true"] { color: var(--accent); }
+  .rail > .ico { background: rgba(255, 255, 255, .03); }
+
+  /* ----- Zone principale ----- */
+  .main { position: fixed; z-index: 2; inset: 0 0 0 var(--rail-w); padding: 44px 56px 36px 76px; display: flex; flex-direction: column; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .chip { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 6px 18px; border-radius: 23px;
+    background: var(--pill); font-size: 13px; }
+  .chip small { display: block; font-size: 11px; color: var(--dim); }
+  .chip b { font-weight: 700; }
+  .grow { flex: 1; }
+  .busy { max-width: 320px; }
+  .busy > div { min-width: 0; }
+  .busy small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .ring { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; border-top-color: var(--accent);
+    border-right-color: var(--accent); animation: spin .9s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .me { text-align: right; margin-right: 44px; }
+  .me small { display: block; font-size: 11px; color: var(--dim); }
+  .avatar { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 18px;
+    background: var(--accent); margin-left: -34px; }
+
+  .view { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+  .back-btn { align-self: flex-start; margin-bottom: 22px; }
+  .tag { display: inline-flex; align-items: center; gap: 10px; height: 32px; padding: 0 14px; border-radius: 16px; background: var(--pill);
+    font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+  .tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+  button.tag:hover { background: var(--pill-hi); }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 84px; line-height: 1; letter-spacing: -.01em;
+    text-transform: uppercase; margin: 22px 0 20px; overflow-wrap: anywhere; }
+  h2 { font-family: var(--display); font-weight: 900; font-size: 34px; text-transform: uppercase; margin-bottom: 18px; }
+  .desc { max-width: 430px; font-size: 14px; line-height: 1.7; color: var(--dim); }
+  .actions { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 22px; border-radius: 24px;
+    font-size: 13px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; background: var(--pill);
+    transition: transform .15s ease, filter .15s ease, background .15s ease; }
+  .btn:hover:not(:disabled) { background: var(--pill-hi); }
+  .btn.primary { background: var(--accent); padding: 0 26px; }
+  .btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.12); transform: translateY(-1px); }
+  .btn:disabled { cursor: default; opacity: .55; }
+  .btn.soft { color: #c9cad6; }
+  .msg { margin-top: 16px; min-height: 20px; font-size: 13px; color: #ff9d90; max-width: 430px; }
+
+  /* ----- Vues secondaires ----- */
+  .sheet { justify-content: flex-start; padding-top: 34px; }
+  .mods { list-style: none; padding: 0 10px 0 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; align-content: start; }
+  .mods li { padding: 12px 16px; border-radius: 12px; background: var(--pill); font-size: 13px; font-weight: 600; }
+  .form { display: grid; gap: 10px; max-width: 460px; }
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 54px; padding: 0 18px; border-radius: 14px;
+    background: var(--pill); font-size: 14px; }
+  .field span { color: var(--dim); }
+  select { height: 34px; padding: 0 8px; border-radius: 8px; background: rgba(255, 255, 255, .06); font-weight: 600; max-width: 220px; }
+  select:disabled { opacity: .55; cursor: default; }
+  select option { background: #1a1b24; color: var(--text); }
+  .friends { list-style: none; padding: 0 10px 0 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; align-content: start; }
+  .friends li { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: var(--pill); }
+  .friends .face { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: rgba(255, 255, 255, .08); flex: none; }
+  .friends .on .face { background: var(--accent); }
+  .friends b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .friends small { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+  .friends small::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #55576a; }
+  .friends .on small::before { background: #5fd38d; }
+  .friends .off { opacity: .6; }
+  .empty { font-size: 14px; color: var(--dim); }
+  button.chip { text-align: left; }
+  button.chip:hover { background: var(--pill-hi); }
+  .console { flex: 1; min-height: 0; padding: 16px 18px; border-radius: 14px; background: rgba(10, 11, 16, .88); overflow-y: auto; user-select: text;
+    font: 12px/1.55 var(--mono); color: #b9bbd4; white-space: pre-wrap; word-break: break-word; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .14); border-radius: 3px; }
+
+  @media (prefers-reduced-motion: reduce) { .ring { animation-duration: 3s; } .btn, .wide { transition: none; } }
+
+  /* ----- Aperçu sur petit écran ----- */
+  @media (max-width: 720px) {
+    :root { --rail-w: 60px; }
+    .main { padding: 48px 18px 20px 22px; }
+    h1 { font-size: 44px; } h2 { font-size: 26px; }
+    .me { display: none; } .avatar { margin-left: 0; }
+    .busy { position: absolute; left: 22px; right: 18px; top: 104px; max-width: none; }
+    .login { width: 100%; min-width: 0; }
+    .ico { width: 40px; height: 40px; }
+    .foot .grow { display: none; } .foot { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+  <div class="back" aria-hidden="true">
+    <canvas id="stage"></canvas>
+    <div class="photo"></div>
+    <div class="veil"></div>
+  </div>
+  <div class="drag"></div>
+  <div class="winbtns">
+    <button id="min" aria-label="Réduire">&#x2013;</button>
+    <button id="close" class="x" aria-label="Fermer">&#x2715;</button>
+  </div>
+
+  <!-- Connexion -->
+  <section class="login" id="login" hidden>
+    <div class="wordmark" id="wordmark">Canopée</div>
+    <p>Connecte-toi avec le compte Microsoft qui possède Minecraft. Une fenêtre Microsoft va s'ouvrir.</p>
+    <button class="wide" id="signin">Se connecter avec Microsoft</button>
+    <p class="err" id="loginerr" role="status"></p>
+  </section>
+
+  <!-- Launcher -->
+  <div id="app" hidden>
+    <nav class="rail" aria-label="Navigation">
+      <div class="mark" id="mark">C</div>
+      <div class="nav">
+        <button class="ico" data-view="home" aria-label="Accueil"><svg class="i" viewBox="0 0 18 18"><path d="M9 1.6 1.8 7.7V16h5v-4.6h4.4V16h5V7.7z"/></svg></button>
+        <button class="ico" data-view="friends" id="navfriends" aria-label="Amis" hidden><svg class="i" viewBox="0 0 18 18"><circle cx="6.5" cy="5.5" r="3"/><path d="M1 15.5c0-3 2.4-5 5.5-5s5.5 2 5.5 5z"/><circle cx="13" cy="6.5" r="2.2"/><path d="M13.2 10.2c2.3 0 3.8 1.6 3.8 4h-3.4c0-1.5-.5-2.8-1.4-3.8.3-.1.6-.2 1-.2z"/></svg></button>
+        <button class="ico" data-view="mods" aria-label="Mods"><svg class="i" viewBox="0 0 18 18"><rect x="2" y="2" width="6" height="6" rx="1.6"/><rect x="10" y="2" width="6" height="6" rx="1.6"/><rect x="2" y="10" width="6" height="6" rx="1.6"/><rect x="10" y="10" width="6" height="6" rx="1.6"/></svg></button>
+        <button class="ico" data-view="settings" aria-label="Réglages"><svg class="i" viewBox="0 0 18 18"><path d="M2 4.2h6.2a2.4 2.4 0 0 1 4.6 0H16v1.6h-3.2a2.4 2.4 0 0 1-4.6 0H2zM2 12.2h3.2a2.4 2.4 0 0 1 4.6 0H16v1.6H9.8a2.4 2.4 0 0 1-4.6 0H2z"/></svg></button>
+        <button class="ico" data-view="console" aria-label="Console"><svg class="i" viewBox="0 0 18 18"><path d="M2 3h14v12H2zm2.2 3.3 2.6 2.2-2.6 2.2 1 1.2 4-3.4-4-3.4zM9.5 11v1.6H14V11z" fill-rule="evenodd"/></svg></button>
+      </div>
+      <button class="ico" id="folder" aria-label="Ouvrir le dossier du jeu"><svg class="i" viewBox="0 0 18 18"><path d="M1.8 3.5h5.4l1.6 1.8h7.4V15H1.8z"/></svg></button>
+    </nav>
+
+    <div class="main">
+      <div class="row">
+        <div class="chip"><div><small>Version du pack</small><b id="vchip">Minecraft</b></div></div>
+        <button class="chip" id="onchip" data-view="friends" hidden><div><small>En ligne</small><b id="oncount">0</b></div></button>
+        <div class="grow"></div>
+        <div class="chip busy" id="busy" hidden role="status">
+          <div><b id="busyt">Préparation</b><small id="busyd"></small></div>
+          <span class="ring"></span>
+        </div>
+        <div class="grow"></div>
+        <div class="me"><b id="name">Joueur</b><small>Compte Microsoft</small></div>
+        <div class="avatar" id="avatar">J</div>
+      </div>
+
+      <section class="view" id="v-home">
+        <div><span class="tag" id="mode">Moddé</span></div>
+        <h1 id="title">Canopée</h1>
+        <p class="desc" id="desc"></p>
+        <div class="actions">
+          <button class="btn primary" id="play"><svg class="i" viewBox="0 0 18 18"><path d="M5 2.8v12.4L15.4 9z"/></svg><span id="playt">Jouer</span></button>
+          <button class="btn" data-view="settings"><svg class="i" viewBox="0 0 18 18"><path d="M2 4.2h6.2a2.4 2.4 0 0 1 4.6 0H16v1.6h-3.2a2.4 2.4 0 0 1-4.6 0H2zM2 12.2h3.2a2.4 2.4 0 0 1 4.6 0H16v1.6H9.8a2.4 2.4 0 0 1-4.6 0H2z"/></svg>Régler</button>
+        </div>
+        <p class="msg" id="msg" role="status"></p>
+      </section>
+
+      <section class="view sheet" id="v-friends" hidden>
+        <button class="tag back-btn" data-view="home">Retour</button>
+        <h2>Amis</h2>
+        <ul class="friends" id="friends"></ul>
+        <p class="empty" id="nofriends" hidden></p>
+      </section>
+
+      <section class="view sheet" id="v-mods" hidden>
+        <button class="tag back-btn" data-view="home">Retour</button>
+        <h2>Mods du pack</h2>
+        <ul class="mods" id="mods"></ul>
+      </section>
+
+      <section class="view sheet" id="v-settings" hidden>
+        <button class="tag back-btn" data-view="home">Retour</button>
+        <h2>Réglages</h2>
+        <div class="form">
+          <label class="field"><span>Pack</span><select id="packsel"></select></label>
+          <label class="field"><span>Version de Minecraft</span><select id="version"></select></label>
+          <label class="field"><span>Mémoire allouée</span><select id="ram"></select></label>
+          <div class="field"><span>Version du launcher</span><b id="lver">–</b></div>
+          <div class="field"><span>Compte</span><button class="btn soft" id="logout" style="height:36px">Changer de compte</button></div>
+        </div>
+      </section>
+
+      <section class="view sheet" id="v-console" hidden>
+        <button class="tag back-btn" data-view="home">Retour</button>
+        <h2>Console</h2>
+        <pre class="console" id="console"></pre>
+      </section>
+
+      <div class="row foot">
+        <button class="btn soft" data-view="mods"><svg class="i" viewBox="0 0 18 18"><path d="M3 2h12v14H3zm2.5 3.2v1.6h7V5.2zm0 3.4v1.6h7V8.6zm0 3.4v1.6h4.4V12z" fill-rule="evenodd"/></svg><span id="modcount">Liste des mods</span></button>
+        <div class="grow"></div>
+        <button class="btn soft" data-view="console">Console</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let accentRGB = [132, 104, 245];
+
+  // ----- Relief 3D animé en arrière-plan (aucune bibliothèque) -----
+  (function stage() {
+    const canvas = $('stage');
+    const ctx = canvas.getContext('2d');
+    const N = 24;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let w = 0, h = 0, px = 0, py = 0, sx = 0, sy = 0, photo = false;
+    const probe = new Image();              // si ui/fond.jpg existe, il remplace le relief 3D
+    probe.onload = () => { photo = true; canvas.hidden = true; };
+    probe.src = 'fond.jpg';
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      w = canvas.clientWidth; h = canvas.clientHeight;
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    addEventListener('resize', resize);
+    addEventListener('pointermove', (e) => { px = e.clientX / w - .5; py = e.clientY / h - .5; });
+    resize();
+    function relief(x, z, t) {
+      const edge = Math.max(0, 1 - (x * x + z * z));
+      const waves = Math.sin(x * 3.1 + t * .5) * .5 + Math.sin(z * 2.6 - t * .38) * .5 + Math.sin((x + z) * 4.4 + t * .27) * .3;
+      return (waves * .22 + .1) * edge * edge;
+    }
+    const mix = (a, b, k) => a + (b - a) * k;
+    function frame(ms) {
+      const t = ms / 1000;
+      sx += (px - sx) * .05; sy += (py - sy) * .05;
+      const spin = t * .18 + sx * .8, tilt = .6 + sy * .2;
+      const cs = Math.cos(spin), sn = Math.sin(spin), ct = Math.cos(tilt), st = Math.sin(tilt);
+      const cx = w * .7, cy = h * .56, size = Math.min(w * .75, h * 1.45);
+      const pts = [];
+      for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+        const x = i / N * 2 - 1, z = j / N * 2 - 1, y = relief(x, z, t);
+        const rx = x * cs - z * sn, rz = x * sn + z * cs;
+        const ry = y * ct - rz * st, rd = y * st + rz * ct;
+        const k = size / (rd + 3.2);
+        pts.push({ x: rx, y: ry, z: rd, h: y, sx: cx + rx * k, sy: cy - ry * k, in: x * x + z * z < 1 });
+      }
+      const tris = [];
+      const add = (a, b, c) => {
+        if (!a.in && !b.in && !c.in) return;
+        const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z, vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+        let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        const len = Math.hypot(nx, ny, nz) || 1;
+        if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+        tris.push({ a, b, c, z: a.z + b.z + c.z, h: (a.h + b.h + c.h) / 3, light: Math.max(0, (nx * -.45 + ny * .8 + nz * -.4) / len) });
+      };
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        const p = i * (N + 1) + j;
+        add(pts[p], pts[p + 1], pts[p + N + 1]);
+        add(pts[p + 1], pts[p + N + 2], pts[p + N + 1]);
+      }
+      tris.sort((m, n) => n.z - m.z);
+      ctx.clearRect(0, 0, w, h);
+      for (const tr of tris) {
+        const k = Math.min(1, Math.max(0, tr.h / .32)), l = .3 + tr.light * .8;
+        const col = `rgb(${mix(26, accentRGB[0], k) * l | 0},${mix(26, accentRGB[1], k) * l | 0},${mix(44, accentRGB[2], k) * l | 0})`;
+        ctx.beginPath();
+        ctx.moveTo(tr.a.sx, tr.a.sy); ctx.lineTo(tr.b.sx, tr.b.sy); ctx.lineTo(tr.c.sx, tr.c.sy);
+        ctx.closePath();
+        ctx.fillStyle = ctx.strokeStyle = col;
+        ctx.fill(); ctx.stroke();
+      }
+      if (!still && !photo) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+
+  // Hors d'Electron (simple aperçu dans un navigateur), on simule le launcher.
+  const demo = !window.launcher;
+  const api = window.launcher || {
+    init: async () => ({
+      pack: { name: 'Canopée', minecraft: '1.21.1', accent: '#8468f5',
+        description: "Une survie moddée entre amis : nouveaux biomes, donjons, exploration et cuisine. Tout s'installe tout seul, il ne reste qu'à jouer.",
+        mods: ['fabric-api', 'sodium', 'terralith', 'biomes-o-plenty', 'yungs-better-dungeons', 'waystones', 'xaeros-minimap',
+          'travelersbackpack', 'farmers-delight-refabricated', 'supplementaries', 'simple-voice-chat', 'jade'] },
+      versions: ['1.21.4', '1.21.1', '1.20.1', '1.16.5', '1.12.2', '1.8.9'], friends: true,
+      mode: 'modded', version: '1.21.1', account: { name: 'Aventurier' }, ram: 6, maxRam: 14,
+    }),
+    login: async () => ({ ok: true, account: { name: 'Aventurier' } }),
+    logout: async () => true,
+    play: async () => ({ ok: false, error: "Aperçu : le jeu se lance depuis l'application." }),
+    friends: async () => [{ name: 'Aventurier', status: 'launcher', seconds_ago: 2 }, { name: 'Lina_Craft', status: 'game', seconds_ago: 11 },
+      { name: 'Tom_du_25', status: 'launcher', seconds_ago: 20 }, { name: 'Maxou', status: 'offline', seconds_ago: 7400 }],
+    openFolder() {}, minimize() {}, close() {}, on() {},
+  };
+
+  let account = null, state = 'idle', pack = null, vanillaVersion = null;
+  const pretty = (slug) => slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/^Yungs/, "YUNG's").replace(/^Xaeros/, "Xaero's").replace(/^Jei$/, 'JEI').replace(/ Api$/, ' API')
+    .replace(/^Travelersbackpack$/, "Traveler's Backpack").replace(/^Farmers Delight.*/, "Farmer's Delight").replace(/^Natures/, "Nature's")
+    .replace(/^Explorers/, "Explorer's").replace(/^Biomes O Plenty$/, "Biomes O' Plenty").replace(/^Modmenu$/, 'Mod Menu')
+    .replace(/^Appleskin$/, 'AppleSkin').replace(/^Entityculling$/, 'Entity Culling').replace(/^Ferrite Core$/, 'FerriteCore');
+
+  function log(line) {
+    const box = $('console');
+    box.textContent += line + '\n';
+    if (box.textContent.length > 200000) box.textContent = box.textContent.slice(-150000);
+    box.scrollTop = box.scrollHeight;
+  }
+  function show(view) {
+    for (const v of ['home', 'friends', 'mods', 'settings', 'console']) $('v-' + v).hidden = v !== view;
+    if (view === 'friends') refreshFriends();
+    document.querySelectorAll('.rail [data-view]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.view === view)));
+  }
+  function render() {
+    $('login').hidden = !!account;
+    $('app').hidden = !account;
+    if (!account) return;
+    const idle = state === 'idle';
+    const modded = $('packsel').value === 'modded';
+    $('name').textContent = account.name;
+    $('avatar').textContent = account.name[0].toUpperCase();
+    $('version').value = modded ? pack.minecraft : vanillaVersion;
+    $('version').disabled = modded || !idle;
+    $('packsel').disabled = $('ram').disabled = $('logout').disabled = !idle;
+    $('vchip').textContent = `Minecraft ${$('version').value}`;
+    $('mode').textContent = modded ? `Moddé · ${pack.mods.length} mods` : 'Vanilla';
+    $('title').textContent = modded ? pack.name : 'Vanilla';
+    $('desc').textContent = modded ? pack.description : 'Minecraft sans aucun mod, dans la version de ton choix.';
+    $('play').disabled = !idle;
+    $('playt').textContent = state === 'preparing' ? 'Préparation' : state === 'running' ? 'En jeu' : 'Jouer';
+    $('busy').hidden = state !== 'preparing';
+  }
+  // ----- Amis : qui est en ligne -----
+  let friendsOn = false;
+  const ago = (s) => s < 3600 ? `il y a ${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `il y a ${Math.round(s / 3600)} h` : `il y a ${Math.round(s / 86400)} j`;
+  async function refreshFriends() {
+    if (!friendsOn || !account) return;
+    const list = await api.friends();
+    $('nofriends').hidden = !!(list && list.length);
+    if (!list) { $('nofriends').textContent = 'Liste indisponible pour le moment (pas de connexion ?).'; return; }
+    if (!list.length) $('nofriends').textContent = "Personne pour l'instant. Tes amis apparaîtront ici dès qu'ils ouvriront le launcher.";
+    $('oncount').textContent = list.filter((p) => p.status !== 'offline').length;
+    $('friends').replaceChildren(...list.map((p) => {
+      const li = document.createElement('li');
+      li.className = p.status === 'offline' ? 'off' : 'on';
+      const face = document.createElement('span'); face.className = 'face'; face.textContent = p.name[0].toUpperCase();
+      const box = document.createElement('div'); box.style.minWidth = '0';
+      const name = document.createElement('b'); name.textContent = p.name + (p.name === account.name ? ' (toi)' : '');
+      const st = document.createElement('small');
+      st.textContent = p.status === 'game' ? 'En jeu' : p.status === 'launcher' ? 'Dans le launcher' : `Hors ligne · vu ${ago(p.seconds_ago)}`;
+      box.append(name, st); li.append(face, box);
+      return li;
+    }));
+  }
+  setInterval(refreshFriends, 20000);
+
+  async function login() {
+    $('signin').disabled = true; $('loginerr').textContent = '';
+    const res = await api.login();
+    $('signin').disabled = false;
+    if (res.ok && res.account) { account = res.account; setTimeout(refreshFriends, 1500); }
+    else $('loginerr').textContent = res.error || 'Connexion impossible.';
+    render();
+  }
+
+  $('signin').onclick = login;
+  $('logout').onclick = async () => { await api.logout(); account = null; show('home'); render(); };
+  $('play').onclick = async () => {
+    $('msg').textContent = '';
+    state = 'preparing'; $('busyt').textContent = 'Préparation'; $('busyd').textContent = ''; render();
+    const res = await api.play({ ramGb: Number($('ram').value), mode: $('packsel').value, version: $('version').value });
+    if (!res.ok) { state = 'idle'; render(); $('msg').textContent = res.error; }
+  };
+  document.querySelectorAll('[data-view]').forEach((b) => { b.onclick = () => show(b.dataset.view); });
+  $('packsel').onchange = render;
+  $('version').onchange = () => { vanillaVersion = $('version').value; render(); };
+  $('folder').onclick = () => api.openFolder();
+  $('min').onclick = () => api.minimize();
+  $('close').onclick = () => api.close();
+
+  api.on('log', log);
+  api.on('status', (s) => {
+    log(s.text);
+    $('busyt').textContent = s.value == null ? 'Préparation' : `Préparation · ${Math.round(s.value * 100)} %`;
+    $('busyd').textContent = s.text;
+  });
+  api.on('state', (s) => { if (s !== state) { state = s; render(); } });
+
+  (async () => {
+    const data = await api.init();
+    pack = data.pack;
+    if (/^#[0-9a-f]{6}$/i.test(pack.accent || '')) {
+      document.documentElement.style.setProperty('--accent', pack.accent);
+      accentRGB = [1, 3, 5].map((i) => parseInt(pack.accent.slice(i, i + 2), 16));
+    }
+    document.title = pack.name + ' Launcher';
+    $('wordmark').textContent = pack.name;
+    $('mark').textContent = pack.name[0].toUpperCase();
+    $('modcount').textContent = 'Liste des mods';
+    $('mods').replaceChildren(...pack.mods.map((m) => { const li = document.createElement('li'); li.textContent = pretty(m); return li; }));
+    const option = (value, label) => new Option(label || value, value);
+    const versions = data.versions.includes(pack.minecraft) ? data.versions : [pack.minecraft, ...data.versions];
+    $('version').replaceChildren(...versions.map((v) => option(v)));
+    $('packsel').replaceChildren(option('modded', `${pack.name} (moddé)`), option('vanilla', 'Vanilla'));
+    $('packsel').value = data.mode;
+    vanillaVersion = versions.includes(data.version) ? data.version : pack.minecraft;
+    const sizes = []; for (let g = 2; g <= Math.min(16, data.maxRam); g += g < 8 ? 1 : 2) sizes.push(g);
+    if (!sizes.includes(data.ram)) sizes.push(data.ram);
+    $('ram').replaceChildren(...sizes.sort((a, b) => a - b).map((g) => option(g, g + ' Go')));
+    $('ram').value = data.ram;
+    $('lver').textContent = data.launcherVersion || '–';
+    account = data.account;
+    friendsOn = !!data.friends;
+    $('navfriends').hidden = $('onchip').hidden = !friendsOn;
+    setTimeout(refreshFriends, 1500);
+    show('home');
+    render();
+    log(`${pack.name} Launcher prêt.`);
+  })();
+</script>
+</body>
+</html>

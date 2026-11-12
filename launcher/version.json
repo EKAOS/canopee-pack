@@ -1,0 +1,18 @@
+{
+  "version": "1.1.0",
+  "minShell": "1.1.0",
+  "files": [
+    {
+      "path": "main.js",
+      "sha256": "956936a03504184937c3fe98f88b18ca14730d8900608146960e8a1165e94881"
+    },
+    {
+      "path": "preload.js",
+      "sha256": "faf4d15b41717bb8e5b8434dab92d9594deffdb9cae46bbf5d503d921554c5c4"
+    },
+    {
+      "path": "ui/index.html",
+      "sha256": "3bf63fb1af4323593fcb64a8ddcab7f09891e62aac334b3e75b702b371629e9c"
+    }
+  ]
+}
