@@ -1,0 +1,32 @@
+{
+  "name": "Canopée",
+  "description": "Une survie moddée entre amis : nouveaux biomes, donjons, exploration et cuisine. Tout s'installe tout seul, il ne reste qu'à jouer.",
+  "accent": "#8468f5",
+  "minecraft": "1.21.1",
+  "mods": [
+    "fabric-api",
+    "sodium",
+    "lithium",
+    "ferrite-core",
+    "entityculling",
+    "iris",
+    "modmenu",
+    "terralith",
+    "biomes-o-plenty",
+    "yungs-better-dungeons",
+    "yungs-better-mineshafts",
+    "yungs-better-strongholds",
+    "waystones",
+    "natures-compass",
+    "explorers-compass",
+    "xaeros-minimap",
+    "xaeros-world-map",
+    "travelersbackpack",
+    "farmers-delight-refabricated",
+    "supplementaries",
+    "appleskin",
+    "jade",
+    "jei",
+    "simple-voice-chat"
+  ]
+}
